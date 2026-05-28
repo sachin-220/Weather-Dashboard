@@ -1,0 +1,33 @@
+# Dependency directories
+node_modules/
+jspm_packages/
+web_modules/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+db.properties
+desktop.ini
+
+# IDEs and editors
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Python caches (from local servers if any)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
