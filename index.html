@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aero | Premium Weather Dashboard</title>
+    <meta name="description" content="A cinematic, next-generation weather dashboard with real-time radar, AQI, allergies, and immersive live backgrounds.">
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Remix Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- CSS -->
+    <link rel="stylesheet" href="style.css?v=2">
+    
+    <!-- External Libraries -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+</head>
+<body>
+    <!-- Background Elements -->
+    <div class="dynamic-bg" id="dynamic-bg"></div>
+
+
+    <!-- Main Application -->
+    <div class="app-container" id="app-container">
+        
+        <!-- Floating Navigation -->
+        <nav class="floating-nav glass-panel" id="floating-nav">
+            <div class="nav-brand">
+                <i class="ri-meteor-fill logo-icon"></i>
+                <h1>Aero</h1>
+            </div>
+            
+            <div class="search-wrapper">
+                <form id="search-form" class="search-form">
+                    <i class="ri-search-line search-icon"></i>
+                    <input type="text" id="search-input" placeholder="Search city..." autocomplete="off">
+                    <button type="button" id="voice-btn" class="icon-btn" title="Voice Search"><i class="ri-mic-line"></i></button>
+                    <button type="button" id="location-btn" class="icon-btn" title="Use Current Location"><i class="ri-focus-3-line"></i></button>
+                </form>
+                <div class="search-suggestions glass-panel hidden" id="search-suggestions"></div>
+            </div>
+
+            <div class="nav-controls">
+                <button id="unit-toggle" class="control-btn glass-btn" title="Toggle °C/°F">
+                    <span class="active">°C</span> | <span>°F</span>
+                </button>
+                <button id="theme-toggle" class="icon-btn control-btn glass-btn" title="Toggle Theme">
+                    <i class="ri-moon-clear-fill"></i>
+                </button>
+            </div>
+        </nav>
+
+        <main class="dashboard-main" id="dashboard-main">
+            <!-- Sidebar / Left Panel -->
+            <aside class="sidebar" id="sidebar">
+                <div class="time-greeting-widget glass-panel slide-up">
+                    <div class="clock-wrap">
+                        <h2 id="current-time">00:00</h2>
+                        <span id="current-ampm">AM</span>
+                    </div>
+                    <p id="current-date" class="date-text">Loading date...</p>
+                    <div class="greeting-wrap">
+                        <i class="ri-sun-cloudy-line" id="greeting-icon"></i>
+                        <p id="greeting-text">Good Morning!</p>
+                    </div>
+                </div>
+
+                <div class="ai-assistant-widget glass-panel slide-up" style="animation-delay: 0.1s;">
+                    <div class="widget-header">
+                        <h3><i class="ri-robot-2-line"></i> Aero AI</h3>
+                    </div>
+                    <div class="ai-content">
+                        <p id="ai-suggestion">Analyzing weather patterns to provide insights...</p>
+                    </div>
+                </div>
+
+                <div class="mood-quote-widget glass-panel slide-up" style="animation-delay: 0.2s;">
+                    <div class="widget-header">
+                        <h3><i class="ri-double-quotes-l"></i> Weather Mood</h3>
+                    </div>
+                    <p id="mood-quote" class="quote-text">"Every cloud has a silver lining."</p>
+                </div>
+                
+                <div class="favorites-widget glass-panel slide-up" style="animation-delay: 0.3s;">
+                    <div class="widget-header">
+                        <h3><i class="ri-star-line"></i> Favorites</h3>
+                    </div>
+                    <div class="favorites-list" id="favorites-list">
+                        <p class="empty-text">No favorites yet.</p>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Dashboard Grid Container (Sortable) -->
+            <div class="dashboard-grid" id="widget-container">
+                
+                <!-- Current Weather -->
+                <div class="widget glass-panel current-weather main-widget sortable-item skeleton-container" id="current-widget">
+                    <div class="skeleton-overlay">
+                        <div class="skeleton skeleton-text skeleton-title"></div>
+                        <div class="skeleton skeleton-circle"></div>
+                        <div class="skeleton skeleton-text skeleton-large"></div>
+                    </div>
+                    <div class="widget-header">
+                        <div class="location-info">
+                            <h2 id="location-name">City, Country</h2>
+                            <p id="location-coords">Lat: 0.00, Lon: 0.00</p>
+                        </div>
+                        <button id="favorite-btn" class="icon-btn"><i class="ri-star-line"></i></button>
+                    </div>
+                    <div class="current-main">
+                        <div class="temp-wrap">
+                            <h1 id="current-temp">--°</h1>
+                            <p class="feels-like">Feels like <span id="feels-like-temp">--°</span></p>
+                        </div>
+                        <div class="weather-icon-wrap">
+                            <i id="current-icon" class="ri-sun-fill animated-icon hidden"></i>
+                            <h3 id="current-condition">--</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Forecast -->
+                <div class="widget glass-panel forecast-widget sortable-item skeleton-container" id="forecast-widget">
+                    <div class="skeleton-overlay">
+                         <div class="skeleton skeleton-text skeleton-title"></div>
+                         <div class="skeleton-flex">
+                             <div class="skeleton skeleton-card"></div>
+                             <div class="skeleton skeleton-card"></div>
+                             <div class="skeleton skeleton-card"></div>
+                         </div>
+                    </div>
+                    <div class="widget-header">
+                        <h3><i class="ri-calendar-event-line"></i> 5-Day Forecast <small style="font-weight:400; font-size:0.8rem;">(Click for 24h trend)</small></h3>
+                    </div>
+                    <div class="forecast-list" id="forecast-list">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+
+                <!-- Interactive Radar -->
+                <div class="widget glass-panel radar-widget sortable-item skeleton-container" id="radar-widget">
+                    <div class="skeleton-overlay">
+                         <div class="skeleton skeleton-text skeleton-title"></div>
+                         <div class="skeleton skeleton-chart"></div>
+                    </div>
+                    <div class="widget-header">
+                        <h3><i class="ri-radar-line"></i> Live Weather Radar</h3>
+                        <div class="radar-controls-top">
+                            <button id="radar-fullscreen-btn" class="icon-btn mini" title="Fullscreen Radar"><i class="ri-fullscreen-line"></i></button>
+                        </div>
+                    </div>
+                    <div class="radar-container-wrapper" id="radar-map-wrapper">
+                        <div class="radar-container" id="radar-map"></div>
+                        
+                        <div class="radar-floating-controls">
+                            <div class="radar-layer-toggle glass-panel" id="radar-layer-menu">
+                                <button class="layer-btn active" data-layer="radar"><i class="ri-rainy-line"></i> Rain</button>
+                                <button class="layer-btn" data-layer="temp"><i class="ri-temp-hot-line"></i> Temp</button>
+                            </div>
+                            
+                            <div class="radar-playback-simple glass-panel" id="radar-playback-container">
+                                <button id="radar-play" class="icon-btn mini" title="Play Rain Animation"><i class="ri-play-fill"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Air Quality Index (AQI) Dashboard -->
+                <div class="widget glass-panel aqi-widget sortable-item skeleton-container" id="aqi-widget">
+                    <div class="skeleton-overlay">
+                         <div class="skeleton skeleton-text skeleton-title"></div>
+                         <div class="skeleton skeleton-chart"></div>
+                    </div>
+                    <div class="widget-header">
+                        <h3><i class="ri-leaf-line"></i> Air Quality Index</h3>
+                    </div>
+                    <div class="aqi-main">
+                        <div class="aqi-score-box">
+                            <h2 id="aqi-main-score">--</h2>
+                            <p id="aqi-main-status">Moderate</p>
+                        </div>
+                        <div class="aqi-pollutants">
+                            <div class="pollutant-bar">
+                                <label>PM2.5</label>
+                                <div class="bar-bg"><div class="bar-fill" id="bar-pm25"></div></div>
+                                <span id="val-pm25">--</span>
+                            </div>
+                            <div class="pollutant-bar">
+                                <label>PM10</label>
+                                <div class="bar-bg"><div class="bar-fill" id="bar-pm10"></div></div>
+                                <span id="val-pm10">--</span>
+                            </div>
+                            <div class="pollutant-bar">
+                                <label>O3</label>
+                                <div class="bar-bg"><div class="bar-fill" id="bar-o3"></div></div>
+                                <span id="val-o3">--</span>
+                            </div>
+                            <div class="pollutant-bar">
+                                <label>NO2</label>
+                                <div class="bar-bg"><div class="bar-fill" id="bar-no2"></div></div>
+                                <span id="val-no2">--</span>
+                            </div>
+                        </div>
+                    </div>
+                    <p id="aqi-recommendation" class="widget-recommendation">Gathering data...</p>
+                </div>
+
+                <!-- Allergy Outlook Feature -->
+                <div class="widget glass-panel allergy-widget sortable-item skeleton-container" id="allergy-widget">
+                    <div class="skeleton-overlay">
+                         <div class="skeleton skeleton-text skeleton-title"></div>
+                         <div class="skeleton skeleton-grid"></div>
+                    </div>
+                    <div class="widget-header">
+                        <h3><i class="ri-virus-line"></i> Allergy Outlook</h3>
+                    </div>
+                    <div class="allergy-grid">
+                        <div class="allergy-card">
+                            <i class="ri-tree-line"></i>
+                            <p>Tree Pollen</p>
+                            <h4 id="al-tree">Low</h4>
+                        </div>
+                        <div class="allergy-card">
+                            <i class="ri-seedling-line"></i>
+                            <p>Grass Pollen</p>
+                            <h4 id="al-grass">Low</h4>
+                        </div>
+                        <div class="allergy-card">
+                            <i class="ri-windy-line"></i>
+                            <p>Dust</p>
+                            <h4 id="al-dust">Low</h4>
+                        </div>
+                        <div class="allergy-card">
+                            <i class="ri-sun-line"></i>
+                            <p>UV Index</p>
+                            <h4 id="al-uv">Low</h4>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Environmental Insights -->
+                <div class="widget glass-panel highlights-widget sortable-item skeleton-container" id="env-widget">
+                    <div class="skeleton-overlay">
+                         <div class="skeleton skeleton-text skeleton-title"></div>
+                         <div class="skeleton-grid">
+                             <div class="skeleton skeleton-card"></div>
+                             <div class="skeleton skeleton-card"></div>
+                             <div class="skeleton skeleton-card"></div>
+                             <div class="skeleton skeleton-card"></div>
+                         </div>
+                    </div>
+                    <div class="widget-header">
+                        <h3><i class="ri-earth-line"></i> Environmental Insights</h3>
+                    </div>
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-header"><span>Sunrise/Sunset</span><i class="ri-sun-cloudy-line"></i></div>
+                            <div class="metric-body">
+                                <h4 style="font-size: 1.5rem;"><i class="ri-sunrise-line"></i> <span id="env-sunrise">--:--</span></h4>
+                                <h4 style="font-size: 1.5rem;"><i class="ri-sunset-line"></i> <span id="env-sunset">--:--</span></h4>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-header"><span>Atmospheric Pressure</span><i class="ri-dashboard-3-line"></i></div>
+                            <div class="metric-body">
+                                <h4 id="env-pressure">-- <span class="unit">hPa</span></h4>
+                                <p>Sea Level</p>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-header"><span>Dew Point</span><i class="ri-drop-line"></i></div>
+                            <div class="metric-body">
+                                <h4 id="env-dewpoint">--°</h4>
+                                <p>Humidity factor</p>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-header"><span>Visibility</span><i class="ri-eye-line"></i></div>
+                            <div class="metric-body">
+                                <h4 id="env-visibility">-- <span class="unit">km</span></h4>
+                                <p id="env-vis-status">Clear</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hourly Chart -->
+                <div class="widget glass-panel chart-widget sortable-item skeleton-container" id="chart-widget">
+                    <div class="skeleton-overlay">
+                         <div class="skeleton skeleton-text skeleton-title"></div>
+                         <div class="skeleton skeleton-chart"></div>
+                    </div>
+                    <div class="widget-header">
+                        <h3><i class="ri-bar-chart-grouped-line"></i> 24h Temperature Trend</h3>
+                    </div>
+                    <div class="chart-container" style="overflow-x: auto; width: 100%;">
+                        <div style="min-width: 600px; height: 200px;">
+                            <canvas id="hourly-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- 24-Hour Trend Modal -->
+    <div class="trend-modal-overlay hidden" id="trend-modal">
+        <div class="trend-modal-content glass-panel">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <h2 id="modal-day-name">Day</h2>
+                    <p id="modal-date-text">Date</p>
+                </div>
+                <button class="icon-btn close-modal" id="close-modal-btn"><i class="ri-close-line"></i></button>
+            </div>
+            
+            <div class="modal-body">
+                <!-- Top Section -->
+                <div class="modal-top-section">
+                    <div class="modal-chart-header">
+                        <div class="graph-controls" id="graph-controls">
+                            <button class="glass-btn active" data-metric="temperature_2m">Temp</button>
+                            <button class="glass-btn" data-metric="precipitation_probability">Rain</button>
+                            <button class="glass-btn" data-metric="relative_humidity_2m">Humidity</button>
+                            <button class="glass-btn" data-metric="wind_speed_10m">Wind</button>
+                        </div>
+                    </div>
+                    <div class="modal-chart-wrapper">
+                        <div class="modal-chart-container">
+                            <canvas id="modal-trend-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Middle Section: Timeline -->
+                <div class="modal-middle-section">
+                    <h3 class="section-title">Hourly Selection</h3>
+                    <div class="hourly-timeline-container" id="hourly-timeline-container">
+                        <div class="hourly-timeline" id="hourly-timeline">
+                            <!-- Selectable time pills injected here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom Section: Detailed Grid -->
+                <div class="modal-bottom-section">
+                    <h3 class="section-title">Detailed Forecast</h3>
+                    <div class="hourly-grid" id="hourly-grid">
+                        <!-- Detailed hourly cards injected here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error/Toast Notification -->
+    <div class="toast" id="toast">
+        <i class="ri-information-line"></i>
+        <div class="toast-content">
+            <span id="toast-message">Message</span>
+            <button id="toast-retry" class="glass-btn hidden">Retry</button>
+        </div>
+    </div>
+
+    <script src="script.js?v=2"></script>
+</body>
+</html>
