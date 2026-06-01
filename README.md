@@ -1,63 +1,242 @@
-# Aero | Premium Weather Dashboard
+# 🌦️ Aero | Premium Weather Dashboard
 
-A polished, futuristic weather dashboard that delivers real-time weather data, interactive radar, Air Quality Index (AQI), allergy outlooks, and environmental insights within a premium glassmorphism UI. 
+A modern and interactive Weather Dashboard built using HTML, CSS, and JavaScript. Aero provides real-time weather information, 5-day forecasts, live weather radar, air quality monitoring, allergy outlooks, environmental insights, and temperature trend visualizations through a clean glassmorphism-inspired user interface.
 
-![Aero Dashboard Preview](screenshot.png)
+---
 
-## 🌟 Key Features
+## 📸 Dashboard Preview
 
-- **Live Weather Data**: Real-time current conditions, "feels like" temperatures, and a 5-day forecast.
-- **Interactive Radar**: A high-performance, dynamic weather map built from scratch using Leaflet.js with multi-layer toggles for rain and temperature.
-- **24-Hour Trend Charts**: Beautiful, interactive line charts visualizing temperature trends, built with Chart.js.
-- **Comprehensive Environmental Insights**: 
-  - Real-time Air Quality Index (AQI) with specific pollutant breakdowns.
-  - Allergy outlooks (Pollen, Dust, UV Index).
-  - Metrics including sunrise/sunset times, atmospheric pressure, dew point, and visibility.
-- **Premium UI/UX**: 
-  - Dynamic gradient backgrounds based on time of day and weather condition.
-  - Smooth microinteractions, skeleton loading shimmers, and sleek glassmorphism panels.
-  - Drag-and-drop customizable widget layout powered by Sortable.js.
-- **Accessible & Responsive**: Fully mobile-responsive layout and theme toggling (Light/Dark modes).
-- **Voice & Geolocation**: Built-in Web Speech API for voice search and Geolocation for fetching local weather.
+### Main Dashboard
+
+![Dashboard](./screenshot/dashboard.png)
+
+### Live Weather Radar
+
+![Weather Radar](./screenshot/weather%20radar.png)
+
+### Air Quality Index
+
+![Air Quality](./screenshot/air%20quality.png)
+
+### Environmental Insights
+
+![Environmental Insights](./screenshot/env%20insights.png)
+
+### 24-Hour Temperature Trend
+
+![Temperature Trend](./screenshot/temp%20trend.png)
+
+---
+
+## ✨ Features
+
+### 🌤️ Real-Time Weather Information
+
+* Current weather conditions
+* Real-time temperature updates
+* Feels-like temperature
+* Humidity tracking
+* Wind information
+* Visibility metrics
+* Atmospheric pressure
+
+### 📅 5-Day Forecast
+
+* Daily weather predictions
+* High and low temperatures
+* Weather condition icons
+* Interactive forecast cards
+
+### 🗺️ Live Weather Radar
+
+* Interactive weather radar
+* Rain layer visualization
+* Temperature overlay
+* Zoom and pan support
+* Fullscreen viewing mode
+
+### 📈 24-Hour Weather Trends
+
+* Interactive temperature charts
+* Hourly weather visualization
+* Smooth chart animations
+* Responsive data display
+
+### 🌍 Environmental Insights
+
+* Sunrise and sunset timings
+* Atmospheric pressure
+* Dew point monitoring
+* Visibility conditions
+
+### 🍃 Air Quality Monitoring
+
+* AQI tracking
+* PM2.5 levels
+* PM10 levels
+* NO₂ monitoring
+* O₃ monitoring
+* Air quality recommendations
+
+### 🌱 Allergy Outlook
+
+* Tree pollen information
+* Grass pollen information
+* Dust levels
+* UV Index tracking
+
+### 🎙️ Smart Features
+
+* Voice search functionality
+* Geolocation-based weather retrieval
+* Dynamic location search
+* Favorites support
+
+### 🎨 User Experience
+
+* Light Mode
+* Dark Mode
+* Responsive design
+* Smooth animations
+* Modern glassmorphism UI
+* Interactive widgets
+* Dynamic weather backgrounds
+
+---
 
 ## 🛠️ Technology Stack
 
-- **Frontend**: HTML5, Vanilla CSS3 (CSS Variables, Grid, Flexbox), Vanilla JavaScript
-- **APIs**: [Open-Meteo](https://open-meteo.com/) (Weather & AQI), [Nominatim](https://nominatim.org/) (Geocoding), [RainViewer](https://www.rainviewer.com/) (Radar Frames)
-- **Libraries**:
-  - [Chart.js](https://www.chartjs.org/) (Data Visualization)
-  - [Leaflet.js](https://leafletjs.com/) (Interactive Maps)
-  - [SortableJS](https://sortablejs.github.io/Sortable/) (Drag and Drop)
-  - [Remix Icons](https://remixicon.com/) (Typography & Icons)
+### Frontend
+
+* HTML5
+* CSS3
+* JavaScript (ES6+)
+
+### APIs
+
+* Open-Meteo Weather API
+* Open-Meteo Air Quality API
+* Nominatim Geocoding API
+* RainViewer Radar API
+
+### Libraries & Tools
+
+* Leaflet.js
+* Chart.js
+* SortableJS
+* Remix Icons
+
+### Development Tools
+
+* Git
+* GitHub
+* Visual Studio Code
+
+---
+
+## 📂 Project Structure
+
+```text
+Weather dashboard/
+│
+├── screenshot.png/
+│   ├── air quality.png
+│   ├── dashboard.png
+│   ├── env insights.png
+│   ├── temp trend.png
+│   └── weather radar.png
+│
+├── .gitignore
+├── index.html
+├── LICENSE
+├── README.md
+├── script.js
+└── style.css
+```
+
+---
 
 ## 🚀 Getting Started
 
-No complex build tools or dependencies are required. It's built entirely with standard web technologies.
+### Clone the Repository
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/your-username/aero-weather-dashboard.git
-   cd aero-weather-dashboard
-   ```
+```bash
+git clone https://sachin-220.github.io/Weather-Dashboard/
+```
 
-2. **Run the application locally:**
-   You can run this project using any simple local HTTP server.
-   
-   Using Python:
-   ```bash
-   python -m http.server 8000
-   ```
-   *Then navigate to `http://localhost:8000` in your web browser.*
+### Navigate to the Project Folder
 
-   Alternatively, use the **Live Server** extension in VS Code.
+```bash
+cd aero-weather-dashboard
+```
 
-## 💅 Recent Refinements
+### Run Locally
 
-The project has recently undergone a massive refinement phase focusing on:
-- **Optimization & Stability**: Removal of unstable experimental UI layers and continuous particle/audio loops resulting in drastic memory footprint improvements and high FPS.
-- **Microinteractions**: Added lightweight, intentional CSS transitions such as soft button hover effects, subtle hover lifts on forecast cards, and an elegant glow.
-- **Graceful Loading**: Replaced abrupt rendering with premium shimmer skeleton cards that cleanly transition out as the API data loads in.
+Using Python:
+
+```bash
+python -m http.server 8000
+```
+
+Open your browser and visit:
+
+```text
+http://localhost:8000
+```
+
+### Alternative
+
+You can also run the project using:
+
+* VS Code Live Server Extension
+* XAMPP
+* Any local web server
+
+---
+
+## 🎯 Learning Outcomes
+
+This project demonstrates:
+
+* REST API Integration
+* Asynchronous JavaScript (Fetch API & Async/Await)
+* Dynamic DOM Manipulation
+* Data Visualization using Chart.js
+* Interactive Maps using Leaflet.js
+* Responsive Web Design
+* Modern UI/UX Principles
+* Geolocation Services
+* Voice Recognition APIs
+* Frontend Performance Optimization
+
+---
+
+## 💡 Future Enhancements
+
+* Weather alerts and notifications
+* Multi-language support
+* Weather history tracking
+* Advanced radar layers
+* Export weather reports
+* Progressive Web App (PWA) support
+* Offline weather caching
+
+---
+
+## 👨‍💻 Author
+
+**Sachin**
+
+2nd Year B.E. Computer Science and Engineering
+
+Developed as a frontend web development project focused on modern UI/UX design, weather data visualization, and API integration.
+
+---
 
 ## 📄 License
 
-This project is open-source and available under the [MIT License](LICENSE).
+Copyright © 2026 Sachin
+
+All Rights Reserved.
+
+This project is intended for educational, portfolio, and demonstration purposes. Unauthorized commercial use, redistribution, reproduction, or resale of this software is prohibited without explicit permission from the author.
