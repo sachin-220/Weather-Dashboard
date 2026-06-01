@@ -999,45 +999,62 @@ canvas#hourly-chart, canvas#modal-trend-chart {
 /* Responsive Design */
 @media (max-width: 1024px) {
     .dashboard-main {
-        display: flex;
-        flex-direction: column;
-        gap: 20px;
+        grid-template-columns: 1fr;
     }
-    
-    .sidebar, .dashboard-grid {
-        display: contents;
-    }
-
-    /* Enforce exact widget ordering on mobile */
-    .time-greeting-widget { order: 1; }
-    #current-widget { order: 2; }
-    #forecast-widget { order: 3; }
-    #radar-widget { order: 4; }
-    #aqi-widget { order: 5; }
-    #allergy-widget { order: 6; }
-    #env-widget { order: 7; }
-    #chart-widget { order: 8; }
-    .ai-assistant-widget { order: 9; }
-    .mood-quote-widget { order: 10; }
-    .favorites-widget { order: 11; }
-
-    /* General widget full-width stretching */
-    .widget, .time-greeting-widget, .ai-assistant-widget, .mood-quote-widget, .favorites-widget {
-        width: 100%;
-        grid-column: span 1;
+    .sidebar {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
     }
 }
 
 @media (max-width: 768px) {
+    body {
+        overflow-x: hidden;
+    }
+
     .app-container {
-        padding: 16px;
-        gap: 16px;
+        padding: 12px;
+        gap: 12px;
     }
     
+    .widget, .glass-panel {
+        padding: 12px;
+        border-radius: 20px;
+    }
+
+    .dashboard-main {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .sidebar {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        order: 2; /* Stacks below the main weather cards */
+    }
+
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+        order: 1; /* Stacks first */
+    }
+
+    .widget, .time-greeting-widget, .ai-assistant-widget, .mood-quote-widget, .favorites-widget {
+        width: 100%;
+        grid-column: span 1 !important;
+        height: auto;
+    }
+
+    /* Navbar scroll naturally with page content */
     .floating-nav {
+        position: relative !important;
+        top: auto !important;
+        left: auto !important;
         flex-wrap: wrap;
-        padding: 10px 16px;
-        top: 12px;
+        padding: 10px 12px;
         gap: 12px;
     }
     
@@ -1094,45 +1111,49 @@ canvas#hourly-chart, canvas#modal-trend-chart {
         font-size: 5.5rem;
     }
 
-    /* Metrics Grid columns */
+    /* Metrics Grid (Environmental Insights) columns */
     .metrics-grid {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: 1fr;
         gap: 12px;
     }
 
     /* Forecast list horizontal scroll enhancement */
     .forecast-list {
+        display: flex;
         justify-content: flex-start;
         gap: 10px;
-        scroll-snap-type: x mandatory;
+        overflow-x: auto;
         -webkit-overflow-scrolling: touch;
+        scroll-snap-type: x mandatory;
     }
     
     .forecast-item {
         flex-shrink: 0;
         scroll-snap-align: start;
+        min-width: 85px;
     }
     
-    /* Chart container height */
-    .chart-wrapper {
-        min-width: 500px;
-        height: 180px;
+    /* Radar scaling */
+    .radar-widget {
+        height: 300px !important;
+        width: 100%;
+        overflow: hidden;
     }
+
+    /* Chart container and wrapper responsive height */
     .chart-widget {
-        height: 260px;
+        width: 100%;
+        height: auto;
+    }
+
+    .chart-wrapper {
+        width: 100%;
+        min-width: 100%;
+        height: 180px;
     }
 }
 
 @media (max-width: 480px) {
-    .app-container {
-        padding: 12px;
-        gap: 12px;
-    }
-    
-    .widget, .glass-panel {
-        padding: 16px;
-    }
-    
     .temp-wrap h1 {
         font-size: 3.2rem;
     }
@@ -1141,16 +1162,13 @@ canvas#hourly-chart, canvas#modal-trend-chart {
         font-size: 4.5rem;
     }
     
-    .metrics-grid {
-        grid-template-columns: 1fr;
-    }
-    
     .aqi-pollutants {
         grid-template-columns: 1fr;
         gap: 10px;
     }
 
     .allergy-grid {
+        grid-template-columns: 1fr;
         gap: 8px;
     }
     
@@ -1183,13 +1201,8 @@ canvas#hourly-chart, canvas#modal-trend-chart {
         padding: 4px;
     }
 
-    /* Chart container further scaling */
     .chart-wrapper {
-        min-width: 450px;
         height: 160px;
-    }
-    .chart-widget {
-        height: 240px;
     }
 }
 
@@ -1208,7 +1221,7 @@ canvas#hourly-chart, canvas#modal-trend-chart {
     }
     
     .logo-icon {
-        font-size: 1.4rem;
+        font-size: 1.2rem;
     }
 
     .allergy-card {
