@@ -844,8 +844,15 @@ button {
 
 .chart-container {
     width: 100%;
-    height: 200px;
+    height: auto;
     position: relative;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.chart-wrapper {
+    min-width: 600px;
+    height: 200px;
 }
 
 canvas#hourly-chart, canvas#modal-trend-chart {
@@ -992,52 +999,250 @@ canvas#hourly-chart, canvas#modal-trend-chart {
 /* Responsive Design */
 @media (max-width: 1024px) {
     .dashboard-main {
-        grid-template-columns: 1fr;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
     }
-    .sidebar {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
+    
+    .sidebar, .dashboard-grid {
+        display: contents;
+    }
+
+    /* Enforce exact widget ordering on mobile */
+    .time-greeting-widget { order: 1; }
+    #current-widget { order: 2; }
+    #forecast-widget { order: 3; }
+    #radar-widget { order: 4; }
+    #aqi-widget { order: 5; }
+    #allergy-widget { order: 6; }
+    #env-widget { order: 7; }
+    #chart-widget { order: 8; }
+    .ai-assistant-widget { order: 9; }
+    .mood-quote-widget { order: 10; }
+    .favorites-widget { order: 11; }
+
+    /* General widget full-width stretching */
+    .widget, .time-greeting-widget, .ai-assistant-widget, .mood-quote-widget, .favorites-widget {
+        width: 100%;
+        grid-column: span 1;
     }
 }
 
 @media (max-width: 768px) {
-    .floating-nav {
-        flex-wrap: wrap;
+    .app-container {
         padding: 16px;
         gap: 16px;
     }
+    
+    .floating-nav {
+        flex-wrap: wrap;
+        padding: 10px 16px;
+        top: 12px;
+        gap: 12px;
+    }
+    
+    .nav-brand h1 {
+        font-size: 1.3rem;
+    }
+    
+    .logo-icon {
+        font-size: 1.6rem;
+    }
+    
     .search-wrapper {
         order: 3;
         max-width: 100%;
         margin: 0;
         width: 100%;
     }
-    .sidebar {
-        grid-template-columns: 1fr;
+    
+    .search-form {
+        padding: 4px 12px;
     }
-    .dashboard-grid {
-        grid-template-columns: 1fr;
+    
+    #search-input {
+        font-size: 0.95rem;
+        padding: 6px 0;
     }
-    .current-weather, .forecast-widget, .highlights-widget, .chart-widget {
-        grid-column: span 1;
+    
+    .nav-controls {
+        gap: 8px;
     }
-    .metrics-grid {
-        grid-template-columns: repeat(2, 1fr);
+    
+    .control-btn, .icon-btn {
+        height: 36px;
+        width: 36px;
+        font-size: 1rem;
     }
+    
+    #unit-toggle {
+        width: auto;
+        padding: 6px 10px;
+        font-size: 0.9rem;
+    }
+
     .hidden-mobile {
         display: none;
     }
+    
+    /* Temp wrap & icon scaling */
     .temp-wrap h1 {
         font-size: 4rem;
+    }
+    
+    .weather-icon-wrap i {
+        font-size: 5.5rem;
+    }
+
+    /* Metrics Grid columns */
+    .metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+
+    /* Forecast list horizontal scroll enhancement */
+    .forecast-list {
+        justify-content: flex-start;
+        gap: 10px;
+        scroll-snap-type: x mandatory;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .forecast-item {
+        flex-shrink: 0;
+        scroll-snap-align: start;
+    }
+    
+    /* Chart container height */
+    .chart-wrapper {
+        min-width: 500px;
+        height: 180px;
+    }
+    .chart-widget {
+        height: 260px;
     }
 }
 
 @media (max-width: 480px) {
+    .app-container {
+        padding: 12px;
+        gap: 12px;
+    }
+    
+    .widget, .glass-panel {
+        padding: 16px;
+    }
+    
+    .temp-wrap h1 {
+        font-size: 3.2rem;
+    }
+    
+    .weather-icon-wrap i {
+        font-size: 4.5rem;
+    }
+    
     .metrics-grid {
         grid-template-columns: 1fr;
     }
+    
+    .aqi-pollutants {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .allergy-grid {
+        gap: 8px;
+    }
+    
+    .allergy-card {
+        padding: 12px 8px;
+        gap: 6px;
+    }
+    
+    .allergy-card h4 {
+        font-size: 1.05rem;
+    }
+    
+    /* Floating controls on radar */
+    .radar-floating-controls {
+        bottom: 12px;
+        gap: 8px;
+    }
+    
+    .layer-btn {
+        padding: 6px 12px;
+        font-size: 0.8rem;
+        gap: 6px;
+    }
+    
+    .radar-layer-toggle {
+        padding: 4px;
+    }
+    
+    .radar-playback-simple {
+        padding: 4px;
+    }
+
+    /* Chart container further scaling */
+    .chart-wrapper {
+        min-width: 450px;
+        height: 160px;
+    }
+    .chart-widget {
+        height: 240px;
+    }
+}
+
+@media (max-width: 375px) {
+    .temp-wrap h1 {
+        font-size: 2.8rem;
+    }
+    
     .weather-icon-wrap i {
-        font-size: 5rem;
+        font-size: 4rem;
+    }
+    
+    .nav-brand h1 {
+        font-size: 1.15rem;
+        letter-spacing: 0.5px;
+    }
+    
+    .logo-icon {
+        font-size: 1.4rem;
+    }
+
+    .allergy-card {
+        padding: 10px 6px;
+    }
+    
+    .allergy-card h4 {
+        font-size: 0.95rem;
+    }
+    
+    .allergy-card p {
+        font-size: 0.75rem;
+    }
+}
+
+@media (max-width: 320px) {
+    .temp-wrap h1 {
+        font-size: 2.4rem;
+    }
+    
+    .weather-icon-wrap i {
+        font-size: 3.5rem;
+    }
+    
+    .nav-brand h1 {
+        font-size: 1rem;
+    }
+    
+    .logo-icon {
+        font-size: 1.2rem;
+    }
+    
+    .widget, .glass-panel {
+        padding: 12px;
     }
 }
 
@@ -1263,11 +1468,15 @@ canvas#hourly-chart, canvas#modal-trend-chart {
     .modal-bottom-section { padding: 16px 20px; }
     .modal-chart-container { height: 200px; }
     .radar-widget { height: 350px; }
+    .hourly-timeline-container { -webkit-overflow-scrolling: touch; }
 }
 
 @media (max-width: 480px) {
-    .metrics-grid { grid-template-columns: 1fr; }
-    .weather-icon-wrap i { font-size: 5rem; }
-    .temp-wrap h1 { font-size: 4.5rem; }
-    .radar-widget { height: 300px; }
+    .trend-modal-content { width: 98%; max-height: 95vh; }
+    .modal-header { padding: 12px 16px; }
+    .modal-top-section { padding: 12px 16px 0 16px; }
+    .modal-middle-section { padding: 12px 16px 0 16px; }
+    .modal-bottom-section { padding: 12px 16px; }
+    .modal-chart-container { height: 180px; }
+    .radar-widget { height: 280px; }
 }
