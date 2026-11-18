@@ -14,7 +14,7 @@
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <!-- CSS -->
-    <link rel="stylesheet" href="style.css?v=3">
+    <link rel="stylesheet" href="style.css?v=6">
     
     <!-- External Libraries -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -77,6 +77,7 @@
                     </div>
                     <div class="ai-content">
                         <p id="ai-suggestion">Analyzing weather patterns to provide insights...</p>
+                        <div id="ai-recommendations" class="ai-recommendations"></div>
                     </div>
                 </div>
 
@@ -168,7 +169,7 @@
                         <div class="radar-floating-controls">
                             <div class="radar-layer-toggle glass-panel" id="radar-layer-menu">
                                 <button class="layer-btn active" data-layer="radar"><i class="ri-rainy-line"></i> Rain</button>
-                                <button class="layer-btn" data-layer="temp"><i class="ri-temp-hot-line"></i> Temp</button>
+                                <button class="layer-btn disabled" data-layer="temp" disabled title="Temperature layer disabled (API key required)"><i class="ri-temp-hot-line"></i> Temp</button>
                             </div>
                             
                             <div class="radar-playback-simple glass-panel" id="radar-playback-container">
@@ -376,6 +377,6 @@
         </div>
     </div>
 
-    <script src="script.js?v=2"></script>
+    <script src="script.js?v=6"></script>
 </body>
 </html>
