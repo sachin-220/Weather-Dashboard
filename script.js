@@ -26,6 +26,7 @@ const state = {
     currentWeatherCode: 0,
     isDay: 1
 };
+window.state = state;
 
 // --- DOM Elements ---
 const DOM = {
@@ -193,9 +194,14 @@ function setupEventListeners() {
 
 // --- Leaflet Radar ---
 state.radarFrames = [];
-state.radarCurrentFrame = 10;
+state.radarCurrentFrame = 0;
 state.radarPlaybackInterval = null;
 state.radarActiveLayer = 'radar';
+state.radarHost = '';
+state.radarMetadataCache = null;
+state.radarMetadataTimestamp = 0;
+state.radarRefreshInterval = null;
+state.radarTileLoadState = 'idle'; // 'idle' | 'loading' | 'loaded' | 'error' | 'no-coverage'
 
 function initLeafletRadar() {
     state.radarMap = L.map('radar-map', {
@@ -203,64 +209,199 @@ function initLeafletRadar() {
         attributionControl: false,
         zoomAnimation: true,
         minZoom: 3,
-        maxZoom: 18, // Increased zoom depth for street-level exploration
+        maxZoom: 18,
         zoomSnap: 0.5,
         zoomDelta: 0.5,
-        wheelPxPerZoomLevel: 100, // Smoother interpolation on scroll
+        wheelPxPerZoomLevel: 100,
         maxBounds: [[-85, -180], [85, 180]]
-    }).setView([state.lat, state.lon], 9); 
-    
-    const isDark = state.theme === 'dark';
-    const tileUrl = isDark ? 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png';
-    
+    }).setView([state.lat, state.lon], 9);
+
+    // OpenStreetMap base tile provider (publicly accessible, no API key required)
+    const osmTileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+
     const emptyTile = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
-    
-    state.baseLayer = L.tileLayer(tileUrl, { 
-        maxNativeZoom: 10,
-        maxZoom: 18, // High resolution base tiles
+
+    state.baseLayer = L.tileLayer(osmTileUrl, {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxNativeZoom: 18,
+        maxZoom: 18,
         errorTileUrl: emptyTile
     }).addTo(state.radarMap);
-    
-    loadRainViewerData();
+
+    // Set up periodic metadata refresh (every 10 minutes)
+    setupRadarRefresh();
+
+    // Initial load
+    loadRadarMetadata();
 }
 
-async function loadRainViewerData() {
-    try {
-        const response = await fetch('https://api.rainviewer.com/public/weather-maps.json');
-        const data = await response.json();
-        state.radarFrames = data.radar.past;
-        state.radarFrames = data.radar.past;
-        state.radarCurrentFrame = state.radarFrames.length - 1;
-        
-        changeRadarLayer(state.radarActiveLayer);
-    } catch (err) {
-        console.error("Failed to load radar data", err);
+function setupRadarRefresh() {
+    if (state.radarRefreshInterval) {
+        clearInterval(state.radarRefreshInterval);
     }
+    // Refresh metadata every 10 minutes (600,000 ms)
+    state.radarRefreshInterval = setInterval(() => {
+        loadRadarMetadata(true);
+    }, 600000);
+}
+
+async function loadRadarMetadata(isRefresh = false) {
+    const timestampEl = document.getElementById('radar-timestamp');
+    const statusEl = document.getElementById('radar-status');
+
+    // Show loading state (only on initial load, not on refresh)
+    if (!isRefresh) {
+        if (timestampEl) timestampEl.textContent = 'Loading radar...';
+        if (statusEl) {
+            statusEl.textContent = 'Loading';
+            statusEl.classList.remove('hidden');
+        }
+    }
+
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+        const response = await fetch('https://api.rainviewer.com/public/weather-maps.json', {
+            signal: controller.signal,
+            cache: 'no-cache'
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        // Store metadata
+        state.radarHost = data.host || 'https://tilecache.rainviewer.com';
+        state.radarFrames = data.radar.past || [];
+        state.radarMetadataCache = data;
+        state.radarMetadataTimestamp = Date.now();
+
+        if (state.radarFrames.length === 0) {
+            throw new Error('No radar frames available');
+        }
+
+        // Set to most recent frame
+        state.radarCurrentFrame = state.radarFrames.length - 1;
+
+        if (!isRefresh) {
+            // Update timestamp display for initial load
+            updateRadarTimestampDisplay();
+        }
+
+        // Apply current layer
+        changeRadarLayer(state.radarActiveLayer);
+
+        // Check coverage for current viewport
+        checkRadarCoverage();
+
+    } catch (err) {
+        console.error('Failed to load radar metadata:', err);
+
+        if (!isRefresh) {
+            if (timestampEl) timestampEl.textContent = 'Failed to load radar';
+            if (statusEl) {
+                statusEl.textContent = 'Error';
+                statusEl.classList.remove('hidden');
+            }
+        }
+
+            // If we have cached data, use it
+        if (state.radarMetadataCache && state.radarFrames.length > 0) {
+            console.log('Using cached radar metadata');
+            changeRadarLayer(state.radarActiveLayer);
+            if (timestampEl) timestampEl.textContent = 'Radar unavailable (cached)';
+        }
+    }
+}
+
+function checkRadarCoverage() {
+    const statusEl = document.getElementById('radar-status');
+    if (!state.radarMap || !statusEl) return;
+
+    const bounds = state.radarMap.getBounds();
+    const center = state.radarMap.getCenter();
+    const zoom = state.radarMap.getZoom();
+
+    // Quick check: if we have no frames, coverage is unknown
+    if (state.radarFrames.length === 0) {
+        statusEl.textContent = 'No data';
+        statusEl.classList.remove('hidden');
+        return;
+    }
+
+    // RainViewer doesn't provide a programmatic coverage mask API.
+    // We'll infer coverage by attempting to load a tile at the current center/zoom.
+    // If the tile loads successfully (even if transparent), coverage exists.
+    // If we get 404 or transparent empty tiles consistently, coverage may be limited.
+
+    const frame = state.radarFrames[state.radarCurrentFrame];
+    if (!frame) return;
+
+    // Convert lat/lng to tile coordinates
+    const tileCoords = latLngToTileCoords(center.lat, center.lng, Math.min(zoom, 7));
+    const testUrl = `${state.radarHost}${frame.path}/256/${tileCoords.z}/${tileCoords.x}/${tileCoords.y}/4/1_1.png`;
+
+    // Quick HEAD request to check if tile exists (not a 404)
+    fetch(testUrl, { method: 'HEAD', cache: 'no-cache' })
+        .then(response => {
+            if (response.ok) {
+                // Tile exists - coverage is available
+                // We can't distinguish dry weather from no coverage via HEAD alone,
+                // but at least we know the radar product covers this area
+                statusEl.textContent = 'Coverage: Active';
+                statusEl.classList.remove('hidden');
+            } else {
+                // Tile not found - likely outside coverage area
+                statusEl.textContent = 'No radar coverage';
+                statusEl.classList.remove('hidden');
+            }
+        })
+        .catch(() => {
+            statusEl.textContent = 'Coverage check failed';
+            statusEl.classList.remove('hidden');
+        });
+}
+
+function latLngToTileCoords(lat, lng, zoom) {
+    const latRad = lat * Math.PI / 180;
+    const n = Math.pow(2, zoom);
+    const x = Math.floor((lng + 180) / 360 * n);
+    const y = Math.floor((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n);
+    return { x, y, z: zoom };
 }
 
 function changeRadarLayer(layerType) {
     state.radarActiveLayer = layerType;
+
+    // Clean up existing radar layer
     if (state.radarLayer) {
         state.radarMap.removeLayer(state.radarLayer);
+        state.radarLayer = null;
     }
 
     const emptyTile = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+    const playbackContainer = document.getElementById('radar-playback-container');
 
     if (layerType === 'radar') {
-        document.getElementById('radar-playback-container').classList.remove('hidden');
+        if (playbackContainer) playbackContainer.classList.remove('hidden');
         updateRadarFrame(state.radarCurrentFrame);
     } else {
-        document.getElementById('radar-playback-container').classList.add('hidden');
+        if (playbackContainer) playbackContainer.classList.add('hidden');
         stopRadarPlayback();
-        
-        const owmKey = 'REMOVED_KEY';
-        
+
+        // Temperature layer uses OpenWeatherMap API - should be moved to a backend proxy for security
+        const owmKey = '';
+
         state.radarLayer = L.tileLayer(`https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=${owmKey}`, {
             opacity: 0.65,
             transparent: true,
             zIndex: 10,
-            maxNativeZoom: 4, // Extremely safe limit to avoid any "Zoom level not supported" tile images
-            maxZoom: 18, 
+            maxNativeZoom: 4,
+            maxZoom: 18,
             className: 'radar-tile-fade',
             errorTileUrl: emptyTile
         }).addTo(state.radarMap);
@@ -269,31 +410,94 @@ function changeRadarLayer(layerType) {
 
 function updateRadarFrame(index) {
     if (state.radarActiveLayer !== 'radar') return;
-    if (state.radarLayer) {
-        state.radarMap.removeLayer(state.radarLayer);
-    }
+    if (state.radarFrames.length === 0) return;
+
+    // Clamp index
+    index = Math.max(0, Math.min(index, state.radarFrames.length - 1));
+
     const frame = state.radarFrames[index];
     if (!frame) return;
-    
+
+    // Clean up old layer
+    if (state.radarLayer) {
+        state.radarMap.removeLayer(state.radarLayer);
+        state.radarLayer = null;
+    }
+
     const emptyTile = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
-    
-    state.radarLayer = L.tileLayer(`https://tilecache.rainviewer.com${frame.path}/256/{z}/{x}/{y}/4/1_1.png`, {
+
+    // Build tile URL using metadata host and frame path
+    const tileUrl = `${state.radarHost}${frame.path}/256/{z}/{x}/{y}/4/1_1.png`;
+
+    state.radarLayer = L.tileLayer(tileUrl, {
         opacity: 0.75,
         transparent: true,
         zIndex: 10,
         className: 'radar-tile-fade',
-        maxNativeZoom: 8, // Very safe threshold. RainViewer sometimes returns "Zoom level not supported" images at zoom >8 in certain regions
-        maxZoom: 18, 
+        maxNativeZoom: 7, // RainViewer's official max native zoom
+        maxZoom: 18,      // Allow upscaling for higher map zoom levels
         errorTileUrl: emptyTile
     }).addTo(state.radarMap);
-    
+
+    // Handle tile loading events for status feedback
+    let tilesLoaded = 0;
+    let tilesError = 0;
+    let checkedCoverage = false;
+
+    state.radarLayer.on('tileload', () => {
+        tilesLoaded++;
+        if (tilesLoaded === 1 && !checkedCoverage) {
+            checkedCoverage = true;
+            // First tile loaded successfully - we have coverage
+            const statusEl = document.getElementById('radar-status');
+            if (statusEl && statusEl.textContent !== 'Coverage: Active') {
+                statusEl.textContent = 'Coverage: Active';
+                statusEl.classList.remove('hidden');
+            }
+        }
+    });
+
+    state.radarLayer.on('tileerror', (e) => {
+        tilesError++;
+        if (tilesError > 3 && tilesLoaded === 0) {
+            // Multiple errors, no successes - likely no coverage
+            const statusEl = document.getElementById('radar-status');
+            if (statusEl) {
+                statusEl.textContent = 'No radar coverage';
+                statusEl.classList.remove('hidden');
+            }
+        }
+    });
+
     state.radarCurrentFrame = index;
+    updateRadarTimestampDisplay();
+}
+
+function updateRadarTimestampDisplay() {
+    const timestampEl = document.getElementById('radar-timestamp');
+    if (!timestampEl || state.radarFrames.length === 0) return;
+
+    const frame = state.radarFrames[state.radarCurrentFrame];
+    if (!frame || !frame.time) return;
+
+    const date = new Date(frame.time * 1000);
+    const options = {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+        timeZoneName: 'short'
+    };
+
+    timestampEl.textContent = date.toLocaleTimeString('en-GB', options) + ' UTC';
 }
 
 function toggleRadarPlayback() {
     if (state.radarPlaybackInterval) {
         stopRadarPlayback();
     } else {
+        if (state.radarFrames.length <= 1) return;
+
         DOM.radarPlayBtn.querySelector('i').className = 'ri-pause-fill';
         state.radarPlaybackInterval = setInterval(() => {
             let nextFrame = state.radarCurrentFrame + 1;
@@ -304,24 +508,46 @@ function toggleRadarPlayback() {
 }
 
 function stopRadarPlayback() {
-    clearInterval(state.radarPlaybackInterval);
-    state.radarPlaybackInterval = null;
-    if(DOM.radarPlayBtn) DOM.radarPlayBtn.querySelector('i').className = 'ri-play-fill';
+    if (state.radarPlaybackInterval) {
+        clearInterval(state.radarPlaybackInterval);
+        state.radarPlaybackInterval = null;
+    }
+    if (DOM.radarPlayBtn) {
+        DOM.radarPlayBtn.querySelector('i').className = 'ri-play-fill';
+    }
 }
 
 function toggleRadarFullscreen() {
     DOM.radarWidget.classList.toggle('fullscreen');
     setTimeout(() => {
-        state.radarMap.invalidateSize();
+        if (state.radarMap) {
+            state.radarMap.invalidateSize();
+        }
     }, 300);
 }
 
 function updateRadarLayer() {
     if (state.radarMap) {
         state.radarMap.setView([state.lat, state.lon], 7, { animate: true, duration: 1 });
-        setTimeout(() => state.radarMap.invalidateSize(), 300);
+        setTimeout(() => {
+            state.radarMap.invalidateSize();
+            // Re-check coverage for new location
+            if (state.radarActiveLayer === 'radar') {
+                checkRadarCoverage();
+            }
+        }, 300);
     }
 }
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    if (state.radarRefreshInterval) {
+        clearInterval(state.radarRefreshInterval);
+    }
+    if (state.radarPlaybackInterval) {
+        clearInterval(state.radarPlaybackInterval);
+    }
+});
 
 // --- Local Storage & Settings ---
 function initTheme() {
@@ -502,11 +728,11 @@ function updateUI(data, aqiData) {
     DOM.currentCondition.textContent = condition;
     DOM.currentIcon.className = `animated-icon ${iconClass}`;
     DOM.currentIcon.style.color = iconColor;
-    DOM.currentIcon.style.filter = `drop-shadow(0 0 25px ${iconColor}88)`;
+    DOM.currentIcon.style.filter = `drop-shadow(0 0 20px ${iconColor}66)`;
     DOM.currentIcon.classList.remove('hidden');
-    
-    DOM.currentWidget.style.boxShadow = `0 15px 40px -5px ${iconColor}33`;
-    DOM.currentWidget.style.background = `linear-gradient(135deg, var(--bg-glass) 0%, ${iconColor}15 50%, var(--bg-glass) 100%)`;
+
+    // Update current widget accent based on condition
+    DOM.currentWidget.style.borderColor = 'var(--border-emphasis)';
 
     // Environmental Insights (Highlights)
     DOM.envPressure.innerHTML = `${Math.round(current.surface_pressure)} <span class="unit">hPa</span>`;
@@ -538,20 +764,20 @@ function updateUI(data, aqiData) {
     // Allergy Outlook
     const uvMax = daily.uv_index_max[0] || 0;
     DOM.alUv.textContent = getUVStatus(uvMax);
-    DOM.alUv.style.color = uvMax > 5 ? '#f87171' : 'inherit';
-    
+    DOM.alUv.style.color = uvMax > 5 ? 'var(--accent-red)' : 'inherit';
+
     const dust = aqiCurrent.dust || 0;
     DOM.alDust.textContent = dust > 50 ? 'High' : (dust > 20 ? 'Moderate' : 'Low');
-    DOM.alDust.style.color = dust > 50 ? '#f87171' : 'inherit';
-    
+    DOM.alDust.style.color = dust > 50 ? 'var(--accent-red)' : 'inherit';
+
     // Aggregate tree pollens
     const treeVal = (aqiCurrent.alder_pollen || 0) + (aqiCurrent.birch_pollen || 0) + (aqiCurrent.olive_pollen || 0);
     DOM.alTree.textContent = getPollenStatus(treeVal);
-    DOM.alTree.style.color = treeVal > 50 ? '#fb923c' : 'inherit';
-    
+    DOM.alTree.style.color = treeVal > 50 ? 'var(--accent-amber)' : 'inherit';
+
     const grassVal = aqiCurrent.grass_pollen || 0;
     DOM.alGrass.textContent = getPollenStatus(grassVal);
-    DOM.alGrass.style.color = grassVal > 50 ? '#fb923c' : 'inherit';
+    DOM.alGrass.style.color = grassVal > 50 ? 'var(--accent-amber)' : 'inherit';
 
     renderForecast(daily);
     renderChart(hourly);
@@ -586,11 +812,11 @@ function updatePollutantBar(barEl, valEl, val, max, color) {
 }
 
 function getAQIDetails(aqi) {
-    if (aqi <= 50) return { label: 'Good', color: '#4ade80', recommendation: 'Air quality is excellent for outdoor activities.' };
-    if (aqi <= 100) return { label: 'Moderate', color: '#facc15', recommendation: 'Acceptable quality. Sensitive groups should limit heavy exertion.' };
-    if (aqi <= 150) return { label: 'Unhealthy (Sens)', color: '#fb923c', recommendation: 'Sensitive groups should limit prolonged outdoor exposure.' };
-    if (aqi <= 200) return { label: 'Unhealthy', color: '#f87171', recommendation: 'Everyone may begin to experience health effects. Limit outdoors.' };
-    return { label: 'Hazardous', color: '#a855f7', recommendation: 'Health warnings of emergency conditions. Avoid outdoor activities entirely.' };
+    if (aqi <= 50) return { label: 'Good', color: 'var(--accent-cyan)', recommendation: 'Air quality is excellent for outdoor activities.' };
+    if (aqi <= 100) return { label: 'Moderate', color: 'var(--accent-amber)', recommendation: 'Acceptable quality. Sensitive groups should limit heavy exertion.' };
+    if (aqi <= 150) return { label: 'Unhealthy (Sens)', color: 'var(--accent-amber)', recommendation: 'Sensitive groups should limit prolonged outdoor exposure.' };
+    if (aqi <= 200) return { label: 'Unhealthy', color: 'var(--accent-red)', recommendation: 'Everyone may begin to experience health effects. Limit outdoors.' };
+    return { label: 'Hazardous', color: 'var(--accent-red)', recommendation: 'Health warnings of emergency conditions. Avoid outdoor activities entirely.' };
 }
 
 function getPollenStatus(val) {
@@ -640,9 +866,9 @@ function renderForecast(daily) {
 function renderChart(hourly) {
     const times = [];
     const temps = [];
-    
+
     const nowHour = new Date().getHours();
-    
+
     for (let i = nowHour; i < nowHour + 24; i++) {
         if (!hourly.time[i]) break;
         const t = new Date(hourly.time[i]);
@@ -656,12 +882,14 @@ function renderChart(hourly) {
     if (state.chartInstance) state.chartInstance.destroy();
 
     const isDark = state.theme === 'dark';
-    const color = isDark ? '#5e6ad2' : '#4351b8';
-    
+    const rootStyles = getComputedStyle(document.documentElement);
+    const color = rootStyles.getPropertyValue('--accent-cyan').trim();
+    const colorDim = rootStyles.getPropertyValue('--accent-cyan-dim').trim();
+
     const ctx = DOM.hourlyChartCtx.getContext('2d');
-    const gradient = ctx.createLinearGradient(0, 0, 0, 200);
-    gradient.addColorStop(0, isDark ? 'rgba(94, 106, 210, 0.6)' : 'rgba(67, 81, 184, 0.6)');
-    gradient.addColorStop(1, isDark ? 'rgba(94, 106, 210, 0.0)' : 'rgba(67, 81, 184, 0.0)');
+    const gradient = ctx.createLinearGradient(0, 0, 0, 220);
+    gradient.addColorStop(0, colorDim.replace('0.12', '0.5').replace('0.1', '0.4'));
+    gradient.addColorStop(1, colorDim.replace('0.12', '0').replace('0.1', '0'));
     
     state.chartInstance = new Chart(DOM.hourlyChartCtx, {
         type: 'line',
@@ -676,30 +904,31 @@ function renderChart(hourly) {
                 fill: true,
                 tension: 0.4,
                 pointBackgroundColor: color,
-                pointBorderColor: isDark ? '#1a1b20' : '#ffffff',
+                pointBorderColor: isDark ? '#080a0f' : '#ffffff',
                 pointBorderWidth: 2,
-                pointRadius: 3,
+                pointRadius: 0,
                 pointHoverRadius: 6
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            layout: { padding: { top: 25, right: 15, left: 15 } },
+            layout: { padding: { top: 20, right: 20, left: 20 } },
             plugins: {
                 legend: { display: false },
                 tooltip: {
-                    backgroundColor: isDark ? 'rgba(20, 20, 29, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-                    titleColor: isDark ? '#ffffff' : '#1a1b20',
-                    bodyColor: isDark ? '#ffffff' : '#1a1b20',
-                    borderColor: 'rgba(255,255,255,0.1)',
+                    backgroundColor: isDark ? 'rgba(13, 17, 23, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                    titleColor: isDark ? '#e8ecf4' : '#0f172a',
+                    bodyColor: isDark ? '#e8ecf4' : '#0f172a',
+                    borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(15,23,42,0.1)',
                     borderWidth: 1,
+                    padding: 12,
                     displayColors: false,
                     callbacks: { label: (ctx) => `${Math.round(ctx.parsed.y)}°` }
                 }
             },
             scales: {
-                x: { grid: { display: false, drawBorder: false }, ticks: { color: '#8e95a5', maxTicksLimit: 8, font: { family: "'Outfit', sans-serif" } } },
+                x: { grid: { display: false, drawBorder: false }, ticks: { color: isDark ? '#4a5a6e' : '#94a3b8', maxTicksLimit: 8, font: { family: "'Outfit', sans-serif", size: 11 } } },
                 y: { display: false, min: Math.min(...temps) - 2, max: Math.max(...temps) + 5 }
             }
         },
@@ -708,11 +937,11 @@ function renderChart(hourly) {
             afterDatasetsDraw(chart) {
                 const { ctx, data, scales: { x, y } } = chart;
                 ctx.save();
-                ctx.fillStyle = isDark ? '#ffffff' : '#1a1b20';
-                ctx.font = '500 12px "Outfit", sans-serif';
+                ctx.fillStyle = isDark ? '#e8ecf4' : '#0f172a';
+                ctx.font = '500 11px "Outfit", sans-serif';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'bottom';
-                
+
                 data.datasets[0].data.forEach((datapoint, index) => {
                     if (index % 3 === 0) {
                         const meta = chart.getDatasetMeta(0);
@@ -833,11 +1062,11 @@ function renderHourlyTimeline() {
 function renderModalChart() {
     const startIndex = state.selectedDayIndex * 24;
     const endIndex = startIndex + 24;
-    
+
     const labels = [];
     const dataPoints = [];
     const metric = state.modalActiveMetric;
-    
+
     for (let i = startIndex; i < endIndex; i++) {
         if (!state.hourlyData.time[i]) break;
         const time = new Date(state.hourlyData.time[i]);
@@ -847,26 +1076,41 @@ function renderModalChart() {
         labels.push(`${hour} ${ampm}`);
         dataPoints.push(state.hourlyData[metric][i]);
     }
-    
+
     if (state.modalChartInstance) state.modalChartInstance.destroy();
 
     const isDark = state.theme === 'dark';
-    let color = isDark ? '#5e6ad2' : '#4351b8';
-    let labelText = 'Temperature';
-    let suffix = '°';
-    
-    if (metric === 'precipitation_probability') { color = '#4ea8de'; labelText = 'Rain Probability'; suffix = '%'; } 
-    else if (metric === 'relative_humidity_2m') { color = '#ffb703'; labelText = 'Humidity'; suffix = '%'; } 
-    else if (metric === 'wind_speed_10m') { color = '#a2d2ff'; labelText = 'Wind Speed'; suffix = ' km/h'; }
-    
+    const rootStyles = getComputedStyle(document.documentElement);
+
+    // Metric-specific colors from CSS variables
+    let color, labelText, suffix, colorDim;
+    if (metric === 'precipitation_probability') {
+        color = rootStyles.getPropertyValue('--accent-cyan').trim();
+        colorDim = rootStyles.getPropertyValue('--accent-cyan-dim').trim();
+        labelText = 'Rain Probability';
+        suffix = '%';
+    } else if (metric === 'relative_humidity_2m') {
+        color = rootStyles.getPropertyValue('--accent-amber').trim();
+        colorDim = rootStyles.getPropertyValue('--accent-amber-dim').trim();
+        labelText = 'Humidity';
+        suffix = '%';
+    } else if (metric === 'wind_speed_10m') {
+        color = rootStyles.getPropertyValue('--accent-cyan').trim();
+        colorDim = rootStyles.getPropertyValue('--accent-cyan-dim').trim();
+        labelText = 'Wind Speed';
+        suffix = ' km/h';
+    } else {
+        color = rootStyles.getPropertyValue('--accent-cyan').trim();
+        colorDim = rootStyles.getPropertyValue('--accent-cyan-dim').trim();
+        labelText = 'Temperature';
+        suffix = '°';
+    }
+
     const ctx = DOM.modalTrendChartCtx.getContext('2d');
-    const gradient = ctx.createLinearGradient(0, 0, 0, 250);
-    let hex = color.replace('#', '');
-    let r = parseInt(hex.substring(0, 2), 16);
-    let g = parseInt(hex.substring(2, 4), 16);
-    let b = parseInt(hex.substring(4, 6), 16);
-    gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.6)`);
-    gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0.0)`);
+    const gradient = ctx.createLinearGradient(0, 0, 0, 280);
+    const dimValue = parseFloat(colorDim.match(/[\d.]+/)[0]);
+    gradient.addColorStop(0, colorDim.replace(dimValue, Math.min(dimValue * 4, 0.5).toString()));
+    gradient.addColorStop(1, colorDim.replace(dimValue, '0'));
 
     state.modalChartInstance = new Chart(DOM.modalTrendChartCtx, {
         type: 'line',
@@ -876,24 +1120,25 @@ function renderModalChart() {
                 label: labelText, data: dataPoints,
                 borderColor: color, backgroundColor: gradient,
                 borderWidth: 3, fill: true, tension: 0.4,
-                pointRadius: 3, pointBackgroundColor: color, pointBorderColor: isDark ? '#14141d' : '#fff', pointBorderWidth: 2,
+                pointRadius: 0, pointBackgroundColor: color, pointBorderColor: isDark ? '#080a0f' : '#ffffff', pointBorderWidth: 2,
                 pointHoverRadius: 8, pointHoverBackgroundColor: color
             }]
         },
         options: {
             responsive: true, maintainAspectRatio: false,
-            layout: { padding: { top: 30, right: 15, left: 15 } },
+            layout: { padding: { top: 24, right: 20, left: 20 } },
             plugins: {
                 legend: { display: false },
                 tooltip: {
-                    backgroundColor: isDark ? 'rgba(20, 20, 29, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-                    titleColor: isDark ? '#ffffff' : '#1a1b20', bodyColor: isDark ? '#ffffff' : '#1a1b20',
-                    borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, displayColors: false,
+                    backgroundColor: isDark ? 'rgba(13, 17, 23, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                    titleColor: isDark ? '#e8ecf4' : '#0f172a', bodyColor: isDark ? '#e8ecf4' : '#0f172a',
+                    borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(15,23,42,0.1)', borderWidth: 1, displayColors: false,
+                    padding: 12,
                     callbacks: { label: (ctx) => `${Math.round(ctx.parsed.y)}${suffix}` }
                 }
             },
             scales: {
-                x: { grid: { display: false, drawBorder: false }, ticks: { color: '#8e95a5', maxTicksLimit: 12, font: { family: "'Outfit', sans-serif" } } },
+                x: { grid: { display: false, drawBorder: false }, ticks: { color: isDark ? '#4a5a6e' : '#94a3b8', maxTicksLimit: 12, font: { family: "'Outfit', sans-serif", size: 11 } } },
                 y: { display: false, min: Math.min(...dataPoints) - (metric==='temperature_2m'?2:5), max: Math.max(...dataPoints) + (metric==='temperature_2m'?5:15) }
             }
         },
@@ -902,11 +1147,11 @@ function renderModalChart() {
             afterDatasetsDraw(chart) {
                 const { ctx, data, scales: { x, y } } = chart;
                 ctx.save();
-                ctx.fillStyle = isDark ? '#ffffff' : '#1a1b20';
-                ctx.font = '500 12px "Outfit", sans-serif';
+                ctx.fillStyle = isDark ? '#e8ecf4' : '#0f172a';
+                ctx.font = '500 11px "Outfit", sans-serif';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'bottom';
-                
+
                 data.datasets[0].data.forEach((datapoint, index) => {
                     if (index % 2 === 0) {
                         const meta = chart.getDatasetMeta(0);
@@ -925,16 +1170,17 @@ function renderModalChart() {
 
 // --- Utilities ---
 function getWeatherIconData(code, isDay) {
+    const isDark = state.theme === 'dark';
     let condition = 'Clear Sky';
     let iconClass = isDay ? 'ri-sun-fill' : 'ri-moon-clear-fill';
-    let iconColor = isDay ? '#ffb703' : '#a2d2ff';
+    let iconColor = isDay ? '#ffb700' : '#00d4aa';
 
-    if (code >= 1 && code <= 3) { condition = 'Partly Cloudy'; iconClass = isDay ? 'ri-sun-cloudy-fill' : 'ri-moon-cloudy-fill'; iconColor = isDay ? '#ffd166' : '#bde0fe'; } 
-    else if (code === 45 || code === 48) { condition = 'Foggy'; iconClass = 'ri-mist-fill'; iconColor = '#adb5bd'; } 
-    else if (code >= 51 && code <= 55 || code >= 80 && code <= 82) { condition = 'Drizzle'; iconClass = 'ri-drizzle-fill'; iconColor = '#8e9af1'; } 
-    else if (code >= 61 && code <= 65) { condition = 'Rain'; iconClass = 'ri-rainy-fill'; iconColor = '#4ea8de'; } 
-    else if (code >= 71 && code <= 77) { condition = 'Snow'; iconClass = 'ri-snowy-fill'; iconColor = '#e0fbfc'; } 
-    else if (code >= 95) { condition = 'Thunderstorm'; iconClass = 'ri-thunderstorms-fill'; iconColor = '#7b2cbf'; }
+    if (code >= 1 && code <= 3) { condition = 'Partly Cloudy'; iconClass = isDay ? 'ri-sun-cloudy-fill' : 'ri-moon-cloudy-fill'; iconColor = isDay ? '#ffb700' : '#00d4aa'; }
+    else if (code === 45 || code === 48) { condition = 'Foggy'; iconClass = 'ri-mist-fill'; iconColor = isDark ? '#4a5a6e' : '#94a3b8'; }
+    else if (code >= 51 && code <= 55 || code >= 80 && code <= 82) { condition = 'Drizzle'; iconClass = 'ri-drizzle-fill'; iconColor = '#00d4aa'; }
+    else if (code >= 61 && code <= 65) { condition = 'Rain'; iconClass = 'ri-rainy-fill'; iconColor = '#00d4aa'; }
+    else if (code >= 71 && code <= 77) { condition = 'Snow'; iconClass = 'ri-snowy-fill'; iconColor = isDark ? '#e8ecf4' : '#475569'; }
+    else if (code >= 95) { condition = 'Thunderstorm'; iconClass = 'ri-thunderstorms-fill'; iconColor = '#ffb700'; }
 
     return { condition, iconClass, iconColor };
 }
@@ -942,19 +1188,19 @@ function getWeatherIconData(code, isDay) {
 function applyTimeBasedTheme(hour) {
     let bgGrad = '';
     const isDark = state.theme === 'dark';
-    
+
     if (isDark) {
-        if (hour >= 5 && hour < 9) bgGrad = 'radial-gradient(circle at 50% 20%, rgba(255, 183, 3, 0.2) 0%, rgba(251, 133, 0, 0.1) 40%, transparent 80%)';
-        else if (hour >= 9 && hour < 17) bgGrad = 'radial-gradient(circle at 50% 10%, rgba(33, 158, 188, 0.2) 0%, transparent 70%)';
-        else if (hour >= 17 && hour < 20) bgGrad = 'radial-gradient(circle at 50% 30%, rgba(251, 133, 0, 0.25) 0%, rgba(217, 4, 41, 0.1) 60%, transparent 80%)';
-        else bgGrad = 'radial-gradient(circle at 50% 10%, rgba(20, 33, 61, 0.6) 0%, rgba(0, 0, 0, 0.1) 80%)';
+        if (hour >= 5 && hour < 9) bgGrad = 'radial-gradient(circle at 50% 20%, var(--accent-amber-dim) 0%, transparent 70%)';
+        else if (hour >= 9 && hour < 17) bgGrad = 'radial-gradient(circle at 50% 10%, var(--accent-cyan-dim) 0%, transparent 70%)';
+        else if (hour >= 17 && hour < 20) bgGrad = 'radial-gradient(circle at 50% 30%, var(--accent-amber-dim) 0%, transparent 70%)';
+        else bgGrad = 'radial-gradient(circle at 50% 10%, var(--bg-panel-subtle) 0%, transparent 70%)';
     } else {
-        if (hour >= 5 && hour < 9) bgGrad = 'radial-gradient(circle at 50% 10%, rgba(255, 230, 153, 0.8) 0%, rgba(255, 204, 204, 0.4) 50%, transparent 100%)';
-        else if (hour >= 9 && hour < 17) bgGrad = 'radial-gradient(circle at 50% 0%, rgba(135, 206, 250, 0.6) 0%, rgba(240, 248, 255, 0.8) 60%, transparent 100%)';
-        else if (hour >= 17 && hour < 20) bgGrad = 'radial-gradient(circle at 50% 20%, rgba(255, 160, 122, 0.6) 0%, rgba(221, 160, 221, 0.4) 60%, transparent 100%)';
-        else bgGrad = 'radial-gradient(circle at 50% 10%, rgba(100, 149, 237, 0.5) 0%, rgba(230, 230, 250, 0.8) 80%)';
+        if (hour >= 5 && hour < 9) bgGrad = 'radial-gradient(circle at 50% 10%, var(--accent-amber-dim) 0%, transparent 70%)';
+        else if (hour >= 9 && hour < 17) bgGrad = 'radial-gradient(circle at 50% 0%, var(--accent-cyan-dim) 0%, transparent 70%)';
+        else if (hour >= 17 && hour < 20) bgGrad = 'radial-gradient(circle at 50% 20%, var(--accent-amber-dim) 0%, transparent 70%)';
+        else bgGrad = 'radial-gradient(circle at 50% 10%, var(--bg-panel-subtle) 0%, transparent 70%)';
     }
-    
+
     DOM.dynamicBg.style.background = bgGrad;
 }
 
