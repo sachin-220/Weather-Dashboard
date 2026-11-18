@@ -269,8 +269,7 @@ async function loadRadarMetadata(isRefresh = false) {
         const timeoutId = setTimeout(() => controller.abort(), 10000);
 
         const response = await fetch('https://api.rainviewer.com/public/weather-maps.json', {
-            signal: controller.signal,
-            cache: 'no-cache'
+            signal: controller.signal
         });
         clearTimeout(timeoutId);
 
